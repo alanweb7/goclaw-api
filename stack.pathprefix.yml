@@ -1,0 +1,54 @@
+version: "3.9"
+
+services:
+  goclaw-api:
+    image: ${GOCLAW_API_IMAGE:-goclaw-api:latest}
+    environment:
+      GOCLAW_WS_URL: "wss://ws.geoclaw.pullse.ia.br/ws"
+      GOCLAW_TOKEN_FILE: "/run/secrets/goclaw_token"
+      PORT: "8080"
+    secrets:
+      - goclaw_token
+    networks:
+      - traefik_public
+      - goclaw_internal
+    deploy:
+      replicas: 2
+      restart_policy:
+        condition: on-failure
+      update_config:
+        parallelism: 1
+        order: start-first
+      labels:
+        - "traefik.enable=true"
+        - "traefik.docker.network=traefik_public"
+        - "traefik.http.routers.goclaw-api.rule=Host(`${GOCLAW_API_HOST}`) && PathPrefix(`${GOCLAW_API_PREFIX:-/goclaw-api}`)"
+        - "traefik.http.routers.goclaw-api.entrypoints=websecure"
+        - "traefik.http.routers.goclaw-api.tls=true"
+        - "traefik.http.routers.goclaw-api.tls.certresolver=${TRAEFIK_CERTRESOLVER:-letsencrypt}"
+        - "traefik.http.routers.goclaw-api.middlewares=goclaw-api-strip-prefix"
+        - "traefik.http.middlewares.goclaw-api-strip-prefix.stripprefix.prefixes=${GOCLAW_API_PREFIX:-/goclaw-api}"
+        - "traefik.http.services.goclaw-api.loadbalancer.server.port=8080"
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 256M
+        reservations:
+          cpus: "0.10"
+          memory: 64M
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+secrets:
+  goclaw_token:
+    external: true
+
+networks:
+  traefik_public:
+    external: true
+  goclaw_internal:
+    driver: overlay

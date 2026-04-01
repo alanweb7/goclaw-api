@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -67,10 +68,15 @@ type chatSendResponse struct {
 }
 
 func main() {
+	token, err := loadToken()
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	cfg := config{
 		ListenAddr: getenv("PORT", "8080"),
 		WSURL:      getenv("GOCLAW_WS_URL", "wss://ws.geoclaw.pullse.ia.br/ws"),
-		Token:      os.Getenv("GOCLAW_TOKEN"),
+		Token:      token,
 	}
 
 	if cfg.Token == "" {
@@ -315,6 +321,25 @@ func getenv(k, fallback string) string {
 		return fallback
 	}
 	return v
+}
+
+func loadToken() (string, error) {
+	// Priority: GOCLAW_TOKEN (env) > GOCLAW_TOKEN_FILE (Docker secret).
+	if token := strings.TrimSpace(os.Getenv("GOCLAW_TOKEN")); token != "" {
+		return token, nil
+	}
+	if p := strings.TrimSpace(os.Getenv("GOCLAW_TOKEN_FILE")); p != "" {
+		data, err := os.ReadFile(filepath.Clean(p))
+		if err != nil {
+			return "", fmt.Errorf("failed reading GOCLAW_TOKEN_FILE: %w", err)
+		}
+		token := strings.TrimSpace(string(data))
+		if token == "" {
+			return "", errors.New("GOCLAW_TOKEN_FILE is empty")
+		}
+		return token, nil
+	}
+	return "", errors.New("missing GOCLAW_TOKEN or GOCLAW_TOKEN_FILE")
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
