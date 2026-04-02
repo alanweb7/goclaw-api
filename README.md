@@ -25,7 +25,9 @@ API HTTP em Go que faz ponte para o WebSocket do GoClaw (`wss://ws.geoclaw.pulls
 ## Endpoints
 
 - `GET /health`
-- `POST /v1/chat`
+- `POST /v1/chat` (sincrono)
+- `POST /v1/jobs` (assincrono)
+- `GET /v1/jobs/{id}` (status/resultado do job)
 
 ## Exemplo de request
 
@@ -60,6 +62,38 @@ curl --location 'http://localhost:8080/v1/chat' \
     "stream":true
   }'
 ```
+
+### Jobs assincronos com callback opcional
+
+Criar job:
+
+```bash
+curl --location 'http://localhost:8080/v1/jobs' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "user_id":"alanweb7",
+    "agent_id":"luna-clara",
+    "session_key":"agent:luna-clara:ws:direct:1234",
+    "message":"Qual nome eu te pedi para lembrar?",
+    "stream":true,
+    "callback_url":"https://webhook.site/seu-id",
+    "callback_headers":{"X-Source":"goclaw-api"}
+  }'
+```
+
+Resposta esperada:
+
+```json
+{"id":"job_xxx","status":"queued"}
+```
+
+Consultar status:
+
+```bash
+curl --location 'http://localhost:8080/v1/jobs/job_xxx'
+```
+
+Quando finalizar, o callback (se informado) recebe `POST` com o JSON completo do job.
 
 ## Rodar com Docker (local)
 
